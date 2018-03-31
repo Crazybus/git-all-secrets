@@ -67,13 +67,23 @@ func check(e error) {
 func gitclone(cloneURL string, repoName string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
-	cmd := exec.Command("/usr/bin/git", "clone", cloneURL, repoName)
+	gitArgs := make([]string, 0)
+
+	// If the directory already exists just do a git pull to update
+	if _, err := os.Stat(repoName); err != nil {
+		gitArgs = append(gitArgs, "clone", cloneURL, repoName)
+	} else {
+		gitArgs = append(gitArgs, "-C", repoName, "pull", "--all")
+	}
+
+	cmd := exec.Command("git", gitArgs...)
+
 	var out, stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if err != nil {
-		fmt.Println(fmt.Sprint(err) + ": " + stderr.String())
+		fmt.Println("error running: '" + strings.Join(cmd.Args, " ") + "' : " + fmt.Sprint(err) + ": " + stderr.String())
 		panic(err)
 	}
 }
