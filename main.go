@@ -36,6 +36,7 @@ var (
 	enterpriseURL        = flag.String("enterpriseURL", "", "Base URL of the Github Enterprise")
 	threads              = flag.Int("threads", 10, "Amount of parallel threads")
 	thogEntropy          = flag.Bool("thogEntropy", false, "Option to include high entropy secrets when truffleHog is used")
+	tempDir              = flag.String("tempDir", "/tmp/", "Prefix where all temporary files will be written")
 	cleanTempFiles       = flag.Bool("cleanTempFiles", false, "Option to clean up the temporary files after a successful run")
 	executionQueue       chan bool
 )
@@ -138,7 +139,7 @@ func cloneorgrepos(ctx context.Context, client *github.Client, org string) error
 	//iterating through the repo array
 	for _, repo := range orgRepos {
 		orgrepowg.Add(1)
-		go executeclone(repo, "/tmp/repos/org/"+*repo.Name, &orgrepowg)
+		go executeclone(repo, *tempDir+"repos/org/"+*repo.Name, &orgrepowg)
 	}
 
 	orgrepowg.Wait()
@@ -181,7 +182,7 @@ func cloneuserrepos(ctx context.Context, client *github.Client, user string) err
 	//iterating through the userRepos array
 	for _, userRepo := range userRepos {
 		userrepowg.Add(1)
-		go executeclone(userRepo, "/tmp/repos/users/"+user+"/"+*userRepo.Name, &userrepowg)
+		go executeclone(userRepo, *tempDir+"repos/users/"+user+"/"+*userRepo.Name, &userrepowg)
 	}
 
 	userrepowg.Wait()
@@ -227,7 +228,7 @@ func cloneusergists(ctx context.Context, client *github.Client, user string) err
 		//cloning the individual user gists
 		func(userGist *github.Gist, user string, usergistclone *sync.WaitGroup) {
 			enqueueJob(func() {
-				gitclone(gisturl, "/tmp/repos/users/"+user+"/"+*userGist.ID, usergistclone)
+				gitclone(gisturl, *tempDir+"repos/users/"+user+"/"+*userGist.ID, usergistclone)
 			})
 		}(userGist, user, &usergistclone)
 	}
@@ -257,7 +258,8 @@ func listallusers(ctx context.Context, client *github.Client, org string) ([]*gi
 }
 
 func runTrufflehog(filepath string, reponame string, orgoruser string) error {
-	outputFile1 := "/tmp/results/thog/" + orgoruser + "_" + reponame + "_" + uuid.NewV4().String() + ".txt"
+	random, _ := uuid.NewV4()
+	outputFile1 := *tempDir + "results/thog/" + orgoruser + "_" + reponame + "_" + random.String() + ".txt"
 
 	// open the out file for writing
 	outfile, fileErr := os.OpenFile(outputFile1, os.O_CREATE|os.O_RDWR, 0644)
@@ -287,7 +289,8 @@ func runTrufflehog(filepath string, reponame string, orgoruser string) error {
 }
 
 func runReposupervisor(filepath string, reponame string, orgoruser string) error {
-	outputFile3 := "/tmp/results/repo-supervisor/" + orgoruser + "_" + reponame + "_" + uuid.NewV4().String() + ".txt"
+	random, _ := uuid.NewV4()
+	outputFile3 := *tempDir + "results/repo-supervisor/" + orgoruser + "_" + reponame + "_" + random.String() + ".txt"
 	cmd3 := exec.Command("./runreposupervisor.sh", filepath, outputFile3)
 	var out3 bytes.Buffer
 	cmd3.Stdout = &out3
@@ -325,12 +328,12 @@ func scanforeachuser(user string, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	var wguserrepogist sync.WaitGroup
-	gituserrepos, _ := ioutil.ReadDir("/tmp/repos/users/" + user)
+	gituserrepos, _ := ioutil.ReadDir(*tempDir + "repos/users/" + user)
 	for _, f := range gituserrepos {
 		wguserrepogist.Add(1)
 		func(user string, wg *sync.WaitGroup, wguserrepogist *sync.WaitGroup, f os.FileInfo) {
 			enqueueJob(func() {
-				runGitTools(*toolName, "/tmp/repos/users/"+user+"/"+f.Name()+"/", wguserrepogist, f.Name(), user)
+				runGitTools(*toolName, *tempDir+"repos/users/"+user+"/"+f.Name()+"/", wguserrepogist, f.Name(), user)
 			})
 		}(user, wg, &wguserrepogist, f)
 	}
@@ -347,9 +350,9 @@ func toolsOutput(toolname string, of *os.File) error {
 	_, err := of.WriteString("Tool: " + toolname + "\n")
 	check(err)
 
-	results, _ := ioutil.ReadDir("/tmp/results/" + toolname + "/")
+	results, _ := ioutil.ReadDir(*tempDir + "results/" + toolname + "/")
 	for _, f := range results {
-		file, err := os.Open("/tmp/results/" + toolname + "/" + f.Name())
+		file, err := os.Open(*tempDir + "results/" + toolname + "/" + f.Name())
 		check(err)
 
 		fi, err := file.Stat()
@@ -384,9 +387,9 @@ func toolsOutput(toolname string, of *os.File) error {
 
 func singletoolOutput(toolname string, of *os.File) error {
 
-	results, _ := ioutil.ReadDir("/tmp/results/" + toolname + "/")
+	results, _ := ioutil.ReadDir(*tempDir + "results/" + toolname + "/")
 	for _, f := range results {
-		file, err := os.Open("/tmp/results/" + toolname + "/" + f.Name())
+		file, err := os.Open(*tempDir + "results/" + toolname + "/" + f.Name())
 		check(err)
 
 		fi, err := file.Stat()
@@ -460,7 +463,7 @@ func scanDir(dir string, org string) error {
 }
 
 func scanorgrepos(org string) error {
-	err := scanDir("/tmp/repos/org/", org)
+	err := scanDir(*tempDir+"repos/org/", org)
 	check(err)
 	return nil
 }
@@ -647,13 +650,13 @@ func checkflags(token string, org string, user string, repoURL string, gistURL s
 }
 
 func makeDirectories() error {
-	os.MkdirAll("/tmp/repos/org", 0700)
-	os.MkdirAll("/tmp/repos/team", 0700)
-	os.MkdirAll("/tmp/repos/users", 0700)
-	os.MkdirAll("/tmp/repos/singlerepo", 0700)
-	os.MkdirAll("/tmp/repos/singlegist", 0700)
-	os.MkdirAll("/tmp/results/thog", 0700)
-	os.MkdirAll("/tmp/results/repo-supervisor", 0700)
+	os.MkdirAll(*tempDir+"repos/org", 0700)
+	os.MkdirAll(*tempDir+"repos/team", 0700)
+	os.MkdirAll(*tempDir+"repos/users", 0700)
+	os.MkdirAll(*tempDir+"repos/singlerepo", 0700)
+	os.MkdirAll(*tempDir+"repos/singlegist", 0700)
+	os.MkdirAll(*tempDir+"results/thog", 0700)
+	os.MkdirAll(*tempDir+"results/repo-supervisor", 0700)
 
 	return nil
 }
@@ -687,7 +690,7 @@ func cloneTeamRepos(ctx context.Context, client *github.Client, org string, team
 	team, err := findTeamByName(ctx, client, org, teamName)
 
 	if team != nil {
-		Info("Cloning the repositories of the team: " + *team.Name + "(" + strconv.Itoa(*team.ID) + ")")
+		Info("Cloning the repositories of the team: " + *team.Name + "(" + strconv.FormatInt(*team.ID, 10) + ")")
 		var teamRepos []*github.Repository
 		listTeamRepoOpts := &github.ListOptions{
 			PerPage: 10,
@@ -709,7 +712,7 @@ func cloneTeamRepos(ctx context.Context, client *github.Client, org string, team
 		//iterating through the repo array
 		for _, repo := range teamRepos {
 			teamrepowg.Add(1)
-			go executeclone(repo, "/tmp/repos/team/"+*repo.Name, &teamrepowg)
+			go executeclone(repo, *tempDir+"repos/team/"+*repo.Name, &teamrepowg)
 		}
 
 		teamrepowg.Wait()
@@ -726,7 +729,7 @@ func cloneTeamRepos(ctx context.Context, client *github.Client, org string, team
 }
 
 func scanTeamRepos(org string) error {
-	err := scanDir("/tmp/repos/team/", org)
+	err := scanDir(*tempDir+"repos/team/", org)
 	check(err)
 	return nil
 }
@@ -861,7 +864,7 @@ func main() {
 
 		var url, repoorgist, fpath, rn, lastString, orgoruserName string
 		var splitArray []string
-		var bpath = "/tmp/repos/"
+		var bpath = *tempDir + "repos/"
 
 		if *repoURL != "" { //repoURL
 			if *enterpriseURL != "" && strings.Split(strings.Split(*repoURL, "/")[0], "@")[0] != "git" {
