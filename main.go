@@ -36,6 +36,7 @@ var (
 	enterpriseURL        = flag.String("enterpriseURL", "", "Base URL of the Github Enterprise")
 	threads              = flag.Int("threads", 10, "Amount of parallel threads")
 	thogEntropy          = flag.Bool("thogEntropy", false, "Option to include high entropy secrets when truffleHog is used")
+	cleanTempFiles       = flag.Bool("cleanTempFiles", false, "Option to clean up the temporary files after a successful run")
 	executionQueue       chan bool
 )
 
@@ -944,4 +945,8 @@ func main() {
 	err = combineOutput(*toolName, *outputFile)
 	check(err)
 
+	if *cleanTempFiles {
+		Info("Cleaning up the temporary files directory\n")
+		os.RemoveAll(*tempDir)
+	}
 }
