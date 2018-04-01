@@ -36,7 +36,7 @@ var (
 	enterpriseURL        = flag.String("enterpriseURL", "", "Base URL of the Github Enterprise")
 	threads              = flag.Int("threads", 10, "Amount of parallel threads")
 	thogEntropy          = flag.Bool("thogEntropy", false, "Option to include high entropy secrets when truffleHog is used")
-	tempDir              = flag.String("tempDir", "/tmp/", "Prefix where all temporary files will be written")
+	tempDir              = flag.String("tempDir", "/tmp/git-all-secrets/", "Prefix where all temporary files will be written")
 	cleanTempFiles       = flag.Bool("cleanTempFiles", false, "Option to clean up the temporary files after a successful run")
 	executionQueue       chan bool
 )

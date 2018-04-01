@@ -63,7 +63,7 @@ The easiest way to run `git-all-secrets` is via Docker and I highly recommend in
 
 * -thogEntropy = This is an optional flag that basically tells if you want to get back high entropy based secrets from truffleHog or not. The high entropy secrets from truffleHog produces a LOT of noise so if you don't really want all that noise and if you are running git-all-secrets on a big organization, I'd recommend not to mention this flag. By default, this is set to `False` which means truffleHog will only produce result based on the Regular expressions in the `regexChecks.py` file. If you are scanning a fairly small org with a limited set of repos or a user with a few repos, mentioning this flag makes more sense.
 
-* -tempDir = This is an optional flag to override the temporary directory used for storing results and git repository data. Default is `/tmp/`
+* -tempDir = This is an optional flag to override the temporary directory used for storing results and git repository data. Default is `/tmp/git-all-secrets/`
 
 * -cleanTempFiles = This is an optional flag to clean up the temporary files after the run
 
